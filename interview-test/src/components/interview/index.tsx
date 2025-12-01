@@ -23,6 +23,14 @@ const HeadPoseEstimation = () => {
   const [faceDetected, setFaceDetected] = useState(false);
   const animationRef = useRef<number | null>(null);
   const [setupStep, setSetupStep] = useState("Initializing...");
+  const [orientationHistory, setOrientationHistory] = useState<
+    Array<{
+      roll: number;
+      pitch: number;
+      yaw: number;
+      timestamp: number;
+    }>
+  >([]);
 
   // Initialize webcam
   useEffect(() => {
@@ -59,6 +67,25 @@ const HeadPoseEstimation = () => {
     };
   }, []);
 
+  const downloadOrientationLog = () => {
+    const csv = [
+      "Timestamp,Roll,Pitch,Yaw",
+      ...orientationHistory.map(
+        (entry) =>
+          `${new Date(entry.timestamp).toISOString()},${entry.roll},${
+            entry.pitch
+          },${entry.yaw}`
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `face-orientation-${Date.now()}.csv`;
+    a.click();
+  };
+
   // Load face-api.js models and custom pose model
   useEffect(() => {
     const loadModels = async () => {
@@ -66,8 +93,9 @@ const HeadPoseEstimation = () => {
         // Load face-api.js models (lightweight landmark detector)
         setSetupStep("Loading face detection model...");
 
-        const MODEL_URL =
-          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+        // const MODEL_URL =
+        //   "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+        const MODEL_URL = "/models/face-api";
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         console.log("Face detection models loaded ✅");
@@ -243,11 +271,30 @@ const HeadPoseEstimation = () => {
           yaw: predictionArray[2],
         };
 
+        console.log("Face Orientation:", {
+          roll: estimatedPose.roll.toFixed(2),
+          pitch: estimatedPose.pitch.toFixed(2),
+          yaw: estimatedPose.yaw.toFixed(2),
+          timestamp: new Date().toISOString(),
+        });
+
         setPose({
           roll: estimatedPose.roll.toFixed(2),
           pitch: estimatedPose.pitch.toFixed(2),
           yaw: estimatedPose.yaw.toFixed(2),
         });
+
+        setOrientationHistory((prev) => {
+          const newEntry = {
+            ...estimatedPose,
+            timestamp: Date.now(),
+          };
+          // Keep only last 100 entries
+          return [...prev.slice(-99), newEntry];
+        });
+
+        // Then you can export or log the history
+        console.log("Orientation History:", orientationHistory);
 
         // Draw pose info overlay
         ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
@@ -274,8 +321,8 @@ const HeadPoseEstimation = () => {
     } catch (err) {
       console.error("Detection error:", err);
     }
-
     animationRef.current = requestAnimationFrame(detectAndEstimate);
+    
   }, [model, scaler, isLoading, computeFeatures, standardizeFeatures]);
 
   // Start detection when video is ready
@@ -391,30 +438,39 @@ const HeadPoseEstimation = () => {
           </div>
 
           {!isLoading && (
-            <div className="p-6 bg-gray-700">
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="bg-gray-600 p-4 rounded-lg">
-                  <div className="text-gray-300 text-sm mb-1">Roll (Tilt)</div>
-                  <div className="text-2xl font-bold text-blue-400">
-                    {pose.roll}°
+            <div className="flex flex-col gap-4">
+              <div className="p-6 bg-gray-700">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="bg-gray-600 p-4 rounded-lg">
+                    <div className="text-gray-300 text-sm mb-1">
+                      Roll (Tilt)
+                    </div>
+                    <div className="text-2xl font-bold text-blue-400">
+                      {pose.roll}°
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">← →</div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">← →</div>
-                </div>
-                <div className="bg-gray-600 p-4 rounded-lg">
-                  <div className="text-gray-300 text-sm mb-1">Pitch (Nod)</div>
-                  <div className="text-2xl font-bold text-green-400">
-                    {pose.pitch}°
+                  <div className="bg-gray-600 p-4 rounded-lg">
+                    <div className="text-gray-300 text-sm mb-1">
+                      Pitch (Nod)
+                    </div>
+                    <div className="text-2xl font-bold text-green-400">
+                      {pose.pitch}°
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">↑ ↓</div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">↑ ↓</div>
-                </div>
-                <div className="bg-gray-600 p-4 rounded-lg">
-                  <div className="text-gray-300 text-sm mb-1">Yaw (Turn)</div>
-                  <div className="text-2xl font-bold text-purple-400">
-                    {pose.yaw}°
+                  <div className="bg-gray-600 p-4 rounded-lg">
+                    <div className="text-gray-300 text-sm mb-1">Yaw (Turn)</div>
+                    <div className="text-2xl font-bold text-purple-400">
+                      {pose.yaw}°
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">↶ ↷</div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">↶ ↷</div>
                 </div>
               </div>
+              <button onClick={downloadOrientationLog} className="">
+                Export
+              </button>
             </div>
           )}
         </div>
