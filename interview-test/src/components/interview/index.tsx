@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as tf from "@tensorflow/tfjs";
 import * as faceapi from "@vladmandic/face-api";
+import { predictCheating } from "@/utils/cheatDetector";
 
 const HeadPoseEstimation = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -19,6 +20,13 @@ const HeadPoseEstimation = () => {
     yaw: "0.00",
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [cheatingProbability, setCheatingProbability] = useState<number>(0);
+  const initialPoseRef = useRef<{
+    roll: number;
+    pitch: number;
+    yaw: number;
+  } | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const animationRef = useRef<number | null>(null);
@@ -31,6 +39,13 @@ const HeadPoseEstimation = () => {
       timestamp: number;
     }>
   >([]);
+
+  const checkCheating = async (deltaRoll:number, deltaPitch:number, deltaYaw:number) => {
+    const probability = await predictCheating(deltaRoll, deltaPitch, deltaYaw);
+    // console.log("Cheating probability:", probability);
+    setCheatingProbability(probability);
+    // You can add further logic here based on the probability value
+  };
 
   // Initialize webcam
   useEffect(() => {
@@ -93,9 +108,9 @@ const HeadPoseEstimation = () => {
         // Load face-api.js models (lightweight landmark detector)
         setSetupStep("Loading face detection model...");
 
-        // const MODEL_URL =
-        //   "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
-        const MODEL_URL = "/models/face-api";
+        const MODEL_URL =
+          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+        // const MODEL_URL = "/models/face-api";
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         console.log("Face detection models loaded ✅");
@@ -271,12 +286,25 @@ const HeadPoseEstimation = () => {
           yaw: predictionArray[2],
         };
 
-        console.log("Face Orientation:", {
-          roll: estimatedPose.roll.toFixed(2),
-          pitch: estimatedPose.pitch.toFixed(2),
-          yaw: estimatedPose.yaw.toFixed(2),
-          timestamp: new Date().toISOString(),
-        });
+        // console.log("Face Orientation:", {
+        //   roll: estimatedPose.roll.toFixed(2),
+        //   pitch: estimatedPose.pitch.toFixed(2),
+        //   yaw: estimatedPose.yaw.toFixed(2),
+        //   timestamp: new Date().toISOString(),
+        // });
+        // console.log("hi 1")
+        if (!initialPoseRef.current) {
+          initialPoseRef.current = estimatedPose;
+        }
+
+        if (initialPoseRef.current) {
+          const deltaRoll = estimatedPose.roll - initialPoseRef.current.roll;
+          const deltaPitch = estimatedPose.pitch - initialPoseRef.current.pitch;
+          const deltaYaw = estimatedPose.yaw - initialPoseRef.current.yaw;
+
+          checkCheating(deltaRoll, deltaPitch, deltaYaw);
+        }
+
 
         setPose({
           roll: estimatedPose.roll.toFixed(2),
@@ -290,11 +318,11 @@ const HeadPoseEstimation = () => {
             timestamp: Date.now(),
           };
           // Keep only last 100 entries
-          return [...prev.slice(-99), newEntry];
+          return [...prev, newEntry];
         });
 
         // Then you can export or log the history
-        console.log("Orientation History:", orientationHistory);
+        // console.log("Orientation History:", orientationHistory);
 
         // Draw pose info overlay
         ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
@@ -410,6 +438,14 @@ const HeadPoseEstimation = () => {
         )}
 
         <div className="bg-gray-800 rounded-lg shadow-2xl overflow-hidden">
+          <div className="flex absolute top-[100px] right-[100px] flex-col gap-4">
+            <div className="flex  justify-center items-center border border-white p-6 font-[18px] ">
+              Cheating Probability: {(cheatingProbability * 100).toFixed(2)}%
+            </div>
+            <div className="flex  justify-center items-center border border-white p-6 font-[18px] ">
+              Pose Initialised: {initialPoseRef.current ? "Yes" : "No"}
+            </div>
+          </div>
           <div className="relative">
             <video
               ref={videoRef}
