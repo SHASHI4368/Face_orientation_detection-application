@@ -108,9 +108,9 @@ const HeadPoseEstimation = () => {
         // Load face-api.js models (lightweight landmark detector)
         setSetupStep("Loading face detection model...");
 
-        const MODEL_URL =
-          "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
-        // const MODEL_URL = "/models/face-api";
+        // const MODEL_URL =
+        //   "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
+        const MODEL_URL = "/models/face-api";
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         console.log("Face detection models loaded ✅");
