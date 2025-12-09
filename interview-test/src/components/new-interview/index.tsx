@@ -3,6 +3,8 @@ import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl"; // Add this
 import "@tensorflow/tfjs-backend-cpu"; // Add this as fallback
 import * as blazeface from "@tensorflow-models/blazeface";
+import ManHeadViewer from "./ManHeadViewer";
+import { predictNewCheating } from "@/utils/cheatDetector-new";
 
 interface HeadPose {
   roll: number;
@@ -26,6 +28,18 @@ const HeadPoseDetector: React.FC = () => {
   const lastTimeRef = useRef<number>(Date.now());
   const frameCountRef = useRef<number>(0);
   const lastPoseRef = useRef<HeadPose | null>(null);
+  const [cheatingProbability, setCheatingProbability] = useState<number>(0);
+
+  const checkCheating = async (roll: number, pitch: number, yaw: number) => {
+      const probability = await predictNewCheating(
+        roll,
+        pitch,
+        yaw
+      );
+      // console.log("Cheating probability:", probability);
+      setCheatingProbability(probability);
+      // You can add further logic here based on the probability value
+    };
 
   // Load BlazeFace model
   useEffect(() => {
@@ -255,6 +269,8 @@ const HeadPoseDetector: React.FC = () => {
         const pose = calculatePoseFromFace(face, canvas.width, canvas.height);
         setHeadPose(pose);
 
+        // Check for cheating
+        await checkCheating(pose.roll, pose.pitch, pose.yaw);
         // Save pose if it has changed significantly
         if (hasPoseChanged(pose)) {
           setPoseHistory((prev) => [...prev, pose]);
@@ -296,8 +312,8 @@ const HeadPoseDetector: React.FC = () => {
   }, [faceModel, isLoading]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br w-full from-gray-900 via-blue-900 to-gray-900 text-white p-8">
+      <div className="w-full px-[10vw] mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
             Real-Time Head Pose Detection
@@ -320,11 +336,20 @@ const HeadPoseDetector: React.FC = () => {
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <div className="flex w-full gap-6 mb-6">
           {/* Video/Canvas Display */}
-          <div className="bg-gray-800/50 rounded-lg p-6 backdrop-blur-sm border border-gray-700">
+          <div className="bg-gray-800/50 w-full relative rounded-lg p-6 backdrop-blur-sm border border-gray-700">
             <h2 className="text-xl font-semibold mb-4">Live Feed</h2>
             <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+              <div className="flex absolute top-[100px] right-[100px] flex-col gap-4">
+                <div className="flex z-100 justify-center items-center border border-white p-6 font-[18px] ">
+                  Cheating Probability: {(cheatingProbability * 100).toFixed(2)}
+                  %
+                </div>
+                {/* <div className="flex  justify-center items-center border border-white p-6 font-[18px] ">
+                  Pose Initialised: {initialPoseRef.current ? "Yes" : "No"}
+                </div> */}
+              </div>
               <video
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full object-cover"
@@ -341,6 +366,12 @@ const HeadPoseDetector: React.FC = () => {
               </div>
             </div>
           </div>
+          {/* <div
+            className="w-full bg-red-400/10 rounded-lg p-6 backdrop-blur-sm border border-red-300/10 flex items-center justify-center"
+            
+          >
+            <ManHeadViewer />
+          </div> */}
 
           {/* Pose Information */}
           <div className="bg-gray-800/50 rounded-lg p-6 backdrop-blur-sm border border-gray-700">
@@ -418,6 +449,7 @@ const HeadPoseDetector: React.FC = () => {
                 </div>
 
                 {/* Visual representation */}
+
                 <div className="mt-8">
                   <h3 className="text-lg font-semibold mb-4 text-center">
                     3D Orientation
@@ -512,42 +544,6 @@ const HeadPoseDetector: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Legend for landmarks */}
-        <div className="bg-gray-800/50 rounded-lg p-6 backdrop-blur-sm border border-gray-700">
-          <h3 className="text-lg font-semibold mb-3">Landmark Detection</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Right Eye</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Left Eye</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Nose</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Mouth</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Right Ear</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Left Ear</span>
-            </div>
-          </div>
-          <p className="text-sm text-gray-400 mt-4">
-            BlazeFace detects 6 key facial landmarks. Head orientation (roll,
-            pitch, yaw) is calculated from the spatial relationships between
-            these landmarks.
-          </p>
         </div>
       </div>
     </div>
