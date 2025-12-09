@@ -1,15 +1,20 @@
 import * as ort from "onnxruntime-web";
 
-let session = null;
+let session: ort.InferenceSession | null = null;
 
 export async function loadCheatModel() {
   if (!session) {
-    session = await ort.InferenceSession.create("/new-model/cheat_detector.onnx");
+    session = await ort.InferenceSession.create(
+      "/new-model/cheat_detector.onnx",
+      {
+        executionProviders: ["wasm"], // explicit provider
+      }
+    );
   }
   return session;
 }
 
-export async function predictNewCheating(roll, pitch, yaw) {
+export async function predictNewCheating(roll:number, pitch:number, yaw:number) {
   const session = await loadCheatModel();
 
   // ONNX expects Float32 tensor of shape [1,3]
